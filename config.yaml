@@ -1,0 +1,53 @@
+data:
+  dataset_path: '/home/PycharmProjects/Data/Deepdeform/'
+  pretrained_model_path: '/home/PycharmProjects/TR4TR/experiment/output/'
+  seed: 1234
+  data_crop: inter_nearest # center, inter_nearest, inter_linear
+  data_normal: ''        # standard_scalar, minMax_scalar, default rgb/255 and xyz not normalized
+  data_mask: True        # source mask, target mask
+  data_transform: False  # RGB data augment
+  flow_reverse: False    # flow data augment
+
+model:
+  batch_size: 2
+  img_size: (240,320,6,2)  # h w c t  original data: (480,640,4)
+  attention_type: patch
+  patch_size: 16
+  num_point: 1280
+  pretrained_model: ''     # checkpoint.pkl
+  masknet_pretrain: ''
+  num_layers: 8
+  num_heads: 8
+  mlp_ratio: 4.
+  qkv_bias: False
+  qk_scale: 0.
+  drop_rate: 0.
+  attn_drop_rate: 0.
+  drop_path_rate: 0.1
+  space_pos: True
+  time_pos: True
+  query_pos: True
+
+loss:
+  w_mask: 0
+  w_tr: 1
+  w_depth: 0
+  w_sf: 0
+  w_drloc: 0.1
+  w_rev: 0
+  drloc_mode: l1  # l1, ce, cbr
+  sample_size: 32
+  alpha: 0.
+  loss_type: L2   # L1, L2, MSE, SmoothL1
+
+train:
+  use_amp: True
+  epochs: 1
+  accum_iter: 1
+  learning_rate: 0.000005
+  lr_decay_type: step  # warmup_step, consine_anneal, linear, step
+  warmup_step: 2
+  weight_decay: 0.0
+  optimizer_name: adamw  # adam, sgd, adamw
+  momentum: 0.9
+
