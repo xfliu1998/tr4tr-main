@@ -46,14 +46,14 @@ and write the following json file `val_.json` to put under the same level file a
 ```json
 [
 	{
-		"source_color": "val/color/shirt_000000.jpg",
-		"source_depth": "val/depth/shirt_000000.png",
-		"target_color": "val/color/shirt_000100.jpg",
-		"target_depth": "val/depth/shirt_000100.png",
-		"object_id": "shirt",
-		"source_id": "000000",
+	"source_color": "val/color/shirt_000000.jpg",
+	"source_depth": "val/depth/shirt_000000.png",
+	"target_color": "val/color/shirt_000100.jpg",
+	"target_depth": "val/depth/shirt_000100.png",
+	"object_id": "shirt",
+	"source_id": "000000",
         "target_id": "000100",
-		"optical_flow": "val/optical_flow/shirt_000000_000100.oflow",
+	"optical_flow": "val/optical_flow/shirt_000000_000100.oflow",
         "scene_flow": "val/scene_flow/shirt_000000_000100.sflow"
 	}
 ]
