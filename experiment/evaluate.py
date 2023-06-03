@@ -4,9 +4,10 @@ from copy import deepcopy
 import collections
 
 
-def cal_EPE3D(scene_flow_loss, EPE3D_err, EPE3D_acc, err_dict, frames_dict, object, frames, valid_matrix):
+def cal_EPE3D(num_EPE3D, scene_flow_loss, EPE3D_err, EPE3D_acc, err_dict, frames_dict, object, frames, valid_matrix):
     """
     calculate the scene flow error in mask, the scene flow unit is m
+    :param num_EPE3D:
     :param scene_flow_loss:
     :param EPE3D_err: cumulative EPE3D error
     :param EPE3D_acc: cumulative EPE3D accuracy
@@ -15,7 +16,7 @@ def cal_EPE3D(scene_flow_loss, EPE3D_err, EPE3D_acc, err_dict, frames_dict, obje
     :param object:
     :param frames:
     :param valid_matrix: mask of valid
-    :return: EPE3D_err, EPE3D_acc, err_dict, frames_dict
+    :return: num_EPE3D, EPE3D_err, EPE3D_acc, err_dict, frames_dict
     """
     batch_size = object.shape[0]
     split_loss = torch.split(scene_flow_loss, len(scene_flow_loss) // batch_size)
@@ -27,15 +28,18 @@ def cal_EPE3D(scene_flow_loss, EPE3D_err, EPE3D_acc, err_dict, frames_dict, obje
         err_dict[object[i].item()][1] += 1
         frames_dict[frames[i].item()][0] += error
         frames_dict[frames[i].item()][1] += 1
-        EPE3D_err += error
+        EPE3D_err[0] += error
+        EPE3D_err[1] += torch.sum(split_loss[i][valid_matrix[i]]).item()
+        num_EPE3D += split_loss[i][valid_matrix[i]].shape[0]
     # scene flow less than 0.05 is included in accuracy
     EPE3D_acc += len(torch.masked_select(scene_flow_loss, scene_flow_loss.le(0.05)))
-    return EPE3D_err, EPE3D_acc, err_dict, frames_dict
+    return num_EPE3D, EPE3D_err, EPE3D_acc, err_dict, frames_dict
 
 
-def cal_deformation_err(point_loss, deformation_err, err_dict, frames_dict, object, frames, valid_matrix):
+def cal_deformation_err(num_deformation, point_loss, deformation_err, err_dict, frames_dict, object, frames, valid_matrix):
     """
     calculate the deformation error in mask
+    :param num_deformation:
     :param point_loss:
     :param deformation_err:
     :param err_dict: cumulative error dict or different object
@@ -43,7 +47,7 @@ def cal_deformation_err(point_loss, deformation_err, err_dict, frames_dict, obje
     :param object:
     :param frames:
     :param valid_matrix: mask of valid
-    :return: deformation_err, err_dict, frames_dict
+    :return: num_deformation, deformation_err, err_dict, frames_dict
     """
     batch_size = object.shape[0]
     split_loss = torch.split(point_loss, len(point_loss) // batch_size, dim=0)
@@ -55,13 +59,16 @@ def cal_deformation_err(point_loss, deformation_err, err_dict, frames_dict, obje
         err_dict[object[i].item()][1] += 1
         frames_dict[frames[i].item()][0] += error
         frames_dict[frames[i].item()][1] += 1
-        deformation_err += error
-    return deformation_err, err_dict, frames_dict
+        deformation_err[0] += error
+        deformation_err[1] += torch.sum(split_loss[i][valid_matrix[i]]).item()
+        num_deformation += split_loss[i][valid_matrix[i]].shape[0]
+    return num_deformation, deformation_err, err_dict, frames_dict
 
 
-def cal_geometry_error(target_point_depth_loss, geometry_err, object, valid_matrix):
+def cal_geometry_error(num_geometry, target_point_depth_loss, geometry_err, object, valid_matrix):
     """
     calculate the geometry error in mask
+    :param num_geometry:
     :param target_point_depth_loss:
     :param geometry_err:
     :param object:
@@ -73,8 +80,11 @@ def cal_geometry_error(target_point_depth_loss, geometry_err, object, valid_matr
     for i in range(batch_size):
         if split_loss[i][valid_matrix[i]].shape[0] == 0:
             continue
-        geometry_err += torch.mean(split_loss[i][valid_matrix[i]]).item()
-    return geometry_err
+        error = torch.mean(split_loss[i][valid_matrix[i]]).item()
+        geometry_err[0] += error
+        geometry_err[1] += torch.sum(split_loss[i][valid_matrix[i]]).item()
+        num_geometry += split_loss[i][valid_matrix[i]].shape[0]
+    return num_geometry, geometry_err
 
 
 def evaluate(val_loader, model, criterion, local_rank):
@@ -88,8 +98,9 @@ def evaluate(val_loader, model, criterion, local_rank):
     source_point_frames_dict = collections.defaultdict(lambda: [0., 0.])
     target_point_frames_dict = collections.defaultdict(lambda: [0., 0.])
 
-    EPE2D_err, EPE3D_err, EPE2D_acc, EPE3D_acc, deformation_err, geometry_err = 0., 0., 0., 0., 0., 0.
-    source_deformation_err, source_geometry_err, source_num_deformation = 0, 0, 0
+    EPE2D_err, EPE3D_err, EPE2D_acc, EPE3D_acc = 0., [0., 0.], 0., 0.
+    source_deformation_err, target_deformation_err, source_geometry_err, target_geometry_err = [0., 0.], [0., 0.], [0., 0.], [0., 0]
+    num_EPE2D, num_EPE3D, num_source_deformation, num_target_deformation, num_source_geometry, num_target_geometry = 0, 0, 0, 0, 0, 0
     total_err, num_batch = 0, 0
 
     for batch_idx, data in tqdm(enumerate(val_loader)):
@@ -129,26 +140,40 @@ def evaluate(val_loader, model, criterion, local_rank):
                 if 0 <= u < w and 0 <= v < h and scene_flow_mask[i, v, u, 0]:
                     valid_matrix[i, j] = True
 
-        EPE3D_err, EPE3D_acc, scene_flow_dict, scene_flow_frames_dict = cal_EPE3D(scene_flow_loss, EPE3D_err, EPE3D_acc,
-                                                                                  scene_flow_dict, scene_flow_frames_dict,
-                                                                                  object, frames, valid_matrix)
-        source_deformation_err, source_point_dict, source_point_frames_dict = cal_deformation_err(source_point_loss, source_deformation_err,
-                                                                                                  source_point_dict, source_point_frames_dict,
-                                                                                                  object, frames, valid_matrix)
-        deformation_err, target_point_dict, target_point_frames_dict = cal_deformation_err(target_point_loss, deformation_err,
-                                                                                           target_point_dict, target_point_frames_dict,
-                                                                                           object, frames, valid_matrix)
-        source_geometry_err = cal_geometry_error(source_point_depth_loss, source_geometry_err, object, valid_matrix)
-        geometry_err = cal_geometry_error(target_point_depth_loss, geometry_err, object, valid_matrix)
+        num_EPE3D, EPE3D_err, EPE3D_acc, scene_flow_dict, scene_flow_frames_dict = cal_EPE3D(num_EPE3D, scene_flow_loss,
+                                                                                             EPE3D_err, EPE3D_acc,
+                                                                                             scene_flow_dict,
+                                                                                             scene_flow_frames_dict,
+                                                                                             object, frames,
+                                                                                             valid_matrix)
+        num_source_deformation, source_deformation_err, source_point_dict, source_point_frames_dict = cal_deformation_err(
+            num_source_deformation, source_point_loss, source_deformation_err,
+            source_point_dict, source_point_frames_dict,
+            object, frames, valid_matrix)
+        num_target_deformation, target_deformation_err, target_point_dict, target_point_frames_dict = cal_deformation_err(
+            num_target_deformation, target_point_loss, target_deformation_err,
+            target_point_dict, target_point_frames_dict,
+            object, frames, valid_matrix)
+        num_source_geometry, source_geometry_err = cal_geometry_error(num_source_geometry, source_point_depth_loss,
+                                                                      source_geometry_err, object, valid_matrix)
+        num_target_geometry, target_geometry_err = cal_geometry_error(num_target_geometry, target_point_depth_loss,
+                                                                      target_geometry_err, object, valid_matrix)
         total_err += total_loss
         num_batch += 1
 
-    avg_EPE3D_err = EPE3D_err / num_batch / batch_size
+    avg_EPE3D_err_mean = EPE3D_err[0] / num_batch / batch_size
+    avg_EPE3D_err = EPE3D_err[1] / num_EPE3D
     avg_EPE3D_acc = EPE3D_acc / (num_batch * batch_size * num_point)
-    avg_source_deformation_err = source_deformation_err / num_batch / batch_size * 100   # m -> cm
-    avg_deformation_err = deformation_err / num_batch / batch_size * 100   # m -> cm
-    avg_source_geometry_err = source_geometry_err / num_batch / batch_size * 100   # m -> cm
-    avg_geometry_err = geometry_err / num_batch / batch_size * 100  # m -> cm
+
+    avg_source_deformation_err_mean = source_deformation_err[0] / num_batch / batch_size * 100   # m -> cm
+    avg_source_deformation_err = source_deformation_err[1] / num_source_deformation * 100   # m -> cm
+    avg_target_deformation_err_mean = target_deformation_err[0] / num_batch / batch_size * 100   # m -> cm
+    avg_target_deformation_err = target_deformation_err[1] / num_target_deformation * 100   # m -> cm
+
+    avg_source_geometry_err_mean = source_geometry_err[0] / num_batch / batch_size * 100   # m -> cm
+    avg_source_geometry_err = source_geometry_err[1] / num_source_geometry * 100   # m -> cm
+    avg_target_geometry_err_mean = target_geometry_err[0] / num_batch / batch_size * 100   # m -> cm
+    avg_target_geometry_err = target_geometry_err[1] / num_target_geometry * 100   # m -> cm
     avg_total_err = total_err / num_batch
     print('total loss', avg_total_err)
 
@@ -172,7 +197,12 @@ def evaluate(val_loader, model, criterion, local_rank):
     print('source point frames', source_point_frames_dict)
     print('target point frames', target_point_frames_dict)
 
-    return avg_EPE3D_err, avg_EPE3D_acc, avg_source_deformation_err, avg_deformation_err, avg_source_geometry_err, avg_geometry_err
+    print('EPE3d mean: ', avg_EPE3D_err_mean)
+    print('source_def_mean: ', avg_source_deformation_err_mean, 'target_def_mean: ', avg_target_deformation_err_mean)
+    print('source_geo_mean: ', avg_source_geometry_err_mean, 'target_geo_mean:', avg_target_geometry_err_mean)
 
+    return avg_EPE3D_err, avg_EPE3D_acc, \
+           avg_source_deformation_err, avg_target_deformation_err, \
+           avg_source_geometry_err, avg_target_geometry_err
 
 

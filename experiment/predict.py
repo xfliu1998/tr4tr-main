@@ -12,7 +12,7 @@ from scipy.optimize import linear_sum_assignment
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def registration2d(source_image, target_image, registration_matrix, valid_matrix, optical_flow_gt):
+def registration2d(source_image_mask, target_image_mask, source_image, target_image, registration_matrix, valid_matrix, optical_flow_gt):
     h, w = source_image.shape[0], source_image.shape[1]
     h_scale, w_scale = 480 / h, 640 / w
     ndarray_image = np.concatenate([source_image, target_image], axis=1)  # h, 2w, 3
@@ -22,25 +22,41 @@ def registration2d(source_image, target_image, registration_matrix, valid_matrix
     error_matrix = np.zeros((registration_matrix.shape[0], ))
     for i in range(len(registration_matrix)):
         u, v = round(registration_matrix[i, 0]/w_scale), round(registration_matrix[i, 1]/h_scale)
-        u_error = abs(optical_flow_gt[v, u, 0]) - abs(registration_matrix[i, 2] - registration_matrix[i, 0])
-        v_error = abs(optical_flow_gt[v, u, 1]) - abs(registration_matrix[i, 3] - registration_matrix[i, 1])
+        u_error = abs(optical_flow_gt[v, u, 0]) - abs(registration_matrix[i, 2] - registration_matrix[i, 0]) / w_scale
+        v_error = abs(optical_flow_gt[v, u, 1]) - abs(registration_matrix[i, 3] - registration_matrix[i, 1]) / h_scale
         error = math.sqrt(u_error ** 2 + v_error ** 2)
         error_matrix[i] = error
+
     # get the index in order of error from smallest to largest
     sorted_array = np.argsort(error_matrix)
-    print('TR4TR EPE2D error: %f pixel' % np.mean(error_matrix))
+    inf_index = np.argwhere(np.isinf(error_matrix))
+    sorted_array = sorted_array[:registration_matrix.shape[0] - len(inf_index)]
+    error_matrix = np.delete(error_matrix, inf_index)
+    print('TR4TR EPE2D error: %f pixel ' % np.mean(error_matrix), error_matrix.shape[0])
 
     # sample n pairs with the least error
     n = 80
+    sample_idx = random.sample(range(sorted_array.shape[0]), n)
+    sample_idx = sorted_array[sample_idx]
+    source_matches, target_matches = np.zeros((n, 1, 2)), np.zeros((n, 1, 2))
     for i in range(n):
-        sorted_registration = registration_matrix[sorted_array[i]]
-        plt.plot([sorted_registration[0]/w_scale, sorted_registration[2]/w_scale + w],
-                 [sorted_registration[1]/h_scale, sorted_registration[3]/h_scale],
-                 color=[(10+i)/255, 80/255, 220/255], linewidth=0.5, marker='.', markersize=2)
+        sorted_registration = registration_matrix[sample_idx[i]]
+        # sorted_registration = registration_matrix[sorted_array[i]]
+        plt.plot([sorted_registration[0] / w_scale, sorted_registration[2] / w_scale + w],
+                 [sorted_registration[1] / h_scale, sorted_registration[3] / h_scale],
+                 color=[(10 + 3 * i) / 255, (80 + i) / 255, 220 / 255], linewidth=0.5, marker='.', markersize=2)
+        source_matches[i, 0] = [sorted_registration[0] / w_scale, sorted_registration[1] / h_scale]
+        target_matches[i, 0] = [sorted_registration[2] / w_scale, sorted_registration[3] / h_scale]
     plt.ion()
-    cv2.imwrite('experiment/output/registration2d_tr4tr.jpg', ndarray_image)
     plt.imshow(ndarray_image.astype('uint8'))
-    plt.show()
+    # plt.show()
+    plt.savefig('experiment/output/tr4tr_registration2d.png')
+
+    # calculate homography
+    H, status = cv2.findHomography(source_matches, target_matches, cv2.RANSAC, 5.0)
+    warped_image = cv2.warpPerspective(source_image_mask, H, (source_image.shape[1], source_image.shape[0]))
+    warped_image = cv2.cvtColor(warped_image, cv2.COLOR_RGB2BGR)
+    cv2.imwrite('experiment/output/tr4tr_warped.jpg', warped_image)
 
 
 def registration3d(source_point_all, source_color_all, target_point_all, target_color_all,
@@ -100,6 +116,14 @@ def registration3d(source_point_all, source_color_all, target_point_all, target_
     )
     source_target_pred_align.colors = o3d.utility.Vector3dVector(align_colors)
 
+    source_gt_target_pred_points = np.concatenate([source_point_gt, target_point_pred], axis=0)
+    source_gt_target_pred_lines = [[i, i + num_valid] for i in range(num_valid)]
+    source_gt_target_pred_align = o3d.geometry.LineSet(
+        points=o3d.utility.Vector3dVector(source_gt_target_pred_points),
+        lines=o3d.utility.Vector2iVector(source_gt_target_pred_lines),
+    )
+    source_gt_target_pred_align.colors = o3d.utility.Vector3dVector(align_colors)
+
     geometry_dict = {
         "source_pcd_all": source_pcd_all,
         "target_pcd_all": target_pcd_all,
@@ -112,7 +136,8 @@ def registration3d(source_point_all, source_color_all, target_point_all, target_
         "source_gt_pred_align": source_gt_pred_align,
         "target_gt_pred_align": target_gt_pred_align,
         "source_target_gt_align": source_target_gt_align,
-        "source_target_pred_align": source_target_pred_align
+        "source_target_pred_align": source_target_pred_align,
+        "source_gt_target_pred_align": source_gt_target_pred_align
     }
 
     # customize the display results
@@ -158,7 +183,7 @@ def predict(model, test_loader, pretrained_model):
             source_point_gt[i], target_point_gt[i] = source_point_gt[i, point_gt_id[i]], target_point_gt[i, point_gt_id[i]]
 
         # infer the target point from the scene flow
-        # target_point_pred = target_point_pred - source_point_pred + source_point_gt
+        target_point_pred = target_point_pred - source_point_pred + source_point_gt
         num_point = 1280
         idx = 0
         flags = farthestPointDownSample(source_point_pred[idx].cpu().detach().numpy(), num_point)
@@ -192,8 +217,14 @@ def predict(model, test_loader, pretrained_model):
             target_point_pred = target_point_pred[valid_matrix].reshape(-1, 3)
 
         # use open3d visualization
+        source_point_all = transform_visual(source_point_all[idx])
+        target_point_all = transform_visual(target_point_all[idx])
+        source_point_gt = transform_visual(source_point_gt)
+        target_point_gt = transform_visual(target_point_gt)
+        source_point_pred = transform_visual(source_point_pred)
+        target_point_pred = transform_visual(target_point_pred)
         target_point_error = np.linalg.norm(target_point_gt - target_point_pred, axis=1, ord=2)
         print('TR4TR EPE3D error: %f m' % np.mean(target_point_error))
-        registration3d(source_point_all[idx], source_color_all[idx], target_point_all[idx], target_color_all[idx],
+        registration3d(source_point_all, source_color_all[idx], target_point_all, target_color_all[idx],
                        source_point_gt, target_point_gt, source_point_pred, target_point_pred)
 

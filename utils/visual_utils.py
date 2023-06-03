@@ -55,6 +55,7 @@ class CustomDrawGeometryWithKeyCallback:
         self.added_target_gt_pred_align = False
         self.added_source_target_gt_align = False
         self.added_source_target_pred_align = False
+        self.added_source_gt_target_pred_align = False
 
         self.source_pcd_all = geometry_dict["source_pcd_all"]
         self.target_pcd_all = geometry_dict["target_pcd_all"]
@@ -67,6 +68,7 @@ class CustomDrawGeometryWithKeyCallback:
         self.target_gt_pred_align = alignment_dict["target_gt_pred_align"]
         self.source_target_gt_align = alignment_dict["source_target_gt_align"]
         self.source_target_pred_align = alignment_dict["source_target_pred_align"]
+        self.source_gt_target_pred_align = alignment_dict["source_gt_target_pred_align"]
 
     def custom_draw_geometry_with_key_callback(self):
         def view_source_all(vis):
@@ -209,6 +211,26 @@ class CustomDrawGeometryWithKeyCallback:
                 self.added_target_pcd_pred = False
             return False
 
+        def align_source_gt_target_pred(vis):
+            print('align source gt target pred')
+            if not self.added_source_pcd_gt:
+                vis.add_geometry(self.source_pcd_gt)
+                self.added_source_pcd_gt = True
+            if not self.added_target_pcd_pred:
+                vis.add_geometry(self.target_pcd_pred)
+                self.added_target_pcd_pred = True
+            if not self.added_source_gt_target_pred_align:
+                vis.add_geometry(self.source_gt_target_pred_align)
+                self.added_source_gt_target_pred_align = True
+            else:
+                vis.remove_geometry(self.source_gt_target_pred_align)
+                self.added_source_gt_target_pred_align = False
+                vis.remove_geometry(self.source_pcd_gt)
+                self.added_source_pcd_gt = False
+                vis.remove_geometry(self.target_pcd_pred)
+                self.added_target_pcd_pred = False
+            return False
+
         def remove_all(vis):
             if not self.added_source_pcd_all:
                 vis.add_geometry(self.added_source_pcd_all)
@@ -255,9 +277,9 @@ class CustomDrawGeometryWithKeyCallback:
         key_to_callback[ord("H")] = align_target_gt_pred
         key_to_callback[ord("I")] = align_source_target_gt
         key_to_callback[ord("J")] = align_source_target_pred
-        key_to_callback[ord("K")] = remove_all
+        key_to_callback[ord("K")] = align_source_gt_target_pred
+        key_to_callback[ord("L")] = remove_all
         o3d.visualization.draw_geometries_with_key_callbacks([self.source_pcd_all], key_to_callback)
-
 
 
 

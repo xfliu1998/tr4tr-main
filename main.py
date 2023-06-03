@@ -4,6 +4,7 @@ import random
 import numpy as np
 from torch import nn, optim
 from torch.utils.data import DataLoader
+import torch.multiprocessing as mp
 import torch.distributed as dist
 from apex.parallel import DistributedDataParallel
 from experiment.train import *
@@ -17,7 +18,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # add everiment variable
-os.environ["CUDA_VISBLE_DEVICES"] = '0'
+os.environ["CUDA_VISBLE_DEVICES"] = '0,1'
 os.environ['MASTER_ADDR'] = 'localhost'
 os.environ['MASTER_PORT'] = '23456'
 os.environ['RANK'] = '0'
@@ -176,22 +177,29 @@ def main_worker(local_rank, args):
 
 
 def main():
-    print('------------training and evaluating---------------')
-    # mp.spawn(main_worker, nprocs=args.nproc_per_node, args=(args,))
+    if args.mode == 'train':
+        print('------------training and evaluating---------------')
+        mp.spawn(main_worker, nprocs=args.nproc_per_node, args=(args,))
 
-    print('------------predicting---------------')
-    test_loader = load_data(data_mode='valid')
-    model = init_model()
-    predict(model, test_loader, pretrained_model)
+    elif args.mode == 'predict':
+        print('------------predicting---------------')
+        test_loader = load_data(data_mode='val_')
+        model = init_model()
+        predict(model, test_loader, pretrained_model)
+
+    else:
+        print('Please specify the mode: train or predict')
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--local_rank", default=-1, type=int, help='node rank for distributed training')
-    parser.add_argument('--nproc_per_node', default=1, type=int, help='nums of process/gpu')
+    parser.add_argument('--nproc_per_node', default=2, type=int, help='nums of process/gpu')
     parser.add_argument('--nnode', default=1, type=int, help='nums of node')
     parser.add_argument('--node_rank', default=0, type=int)
+    parser.add_argument("--mode", default='train', help='train or predict')
+
     args = parser.parse_args()
 
     main()

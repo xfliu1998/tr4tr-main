@@ -18,7 +18,7 @@ def train(epochs, accum_iter, train_loader, val_loader, model, criterion_sup, cr
     viz = Visdom()
     avg_EPE3D_err_list, avg_EPE3D_acc_list, avg_deformation_err_list, avg_geometry_err_list = [], [], [], []
     loss_sum, global_step = 0, 1
-    TRAIN, EVALUATE = False, True
+    TRAIN, EVALUATE = True, True
     # scaler = amp.GradScaler()
     loss_list = list()
 

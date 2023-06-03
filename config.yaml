@@ -9,15 +9,15 @@ data:
   flow_reverse: False    # flow data augment
 
 model:
-  batch_size: 2
+  batch_size: 3
   img_size: (240,320,6,2)  # h w c t  original data: (480,640,4)
   attention_type: patch
   patch_size: 16
   num_point: 1280
   pretrained_model: ''     # checkpoint.pkl
   masknet_pretrain: ''
-  num_layers: 8
-  num_heads: 8
+  num_layers: 6
+  num_heads: 6
   mlp_ratio: 4.
   qkv_bias: False
   qk_scale: 0.
@@ -42,9 +42,9 @@ loss:
 
 train:
   use_amp: True
-  epochs: 1
+  epochs: 10
   accum_iter: 1
-  learning_rate: 0.000005
+  learning_rate: 0.00005
   lr_decay_type: step  # warmup_step, consine_anneal, linear, step
   warmup_step: 2
   weight_decay: 0.0

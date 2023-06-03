@@ -53,8 +53,8 @@ def mask_utils(source, target, mask):
         mask_pred = mask_net(source[..., :3].permute(0, 3, 1, 2))
         mask_gt = torch.where(mask[..., :1].permute(0, 3, 1, 2), 1, 0)
         mask_loss = nn.BCELoss(mask_pred, mask_gt)
-    source_mask = mask_net(source[..., :3].permute(0, 3, 1, 2))
+    source_mask = mask_net(source[..., :3].permute(0, 3, 1, 2))   # b h w c -> b c h w
     target_mask = mask_net(target[..., :3].permute(0, 3, 1, 2))
-    source = source_mask.permute(0, 2, 3, 1) * source
-    target = target_mask.permute(0, 2, 3, 1) * target
+    source = source_mask.permute(0, 2, 3, 1).repeat(1, 1, 1, 6)   # b h w c
+    target = target_mask.permute(0, 2, 3, 1).repeat(1, 1, 1, 6)
     return source, target, mask_loss

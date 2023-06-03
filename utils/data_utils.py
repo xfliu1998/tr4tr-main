@@ -170,6 +170,8 @@ def generate_point(src_image, scene_flow_image, scene_flow_mask, num_point):
     :param num_point:
     :return: point_cloud
     """
+    if scene_flow_image is None:
+        scene_flow_image = np.zeros(scene_flow_mask.shape)
     src_point = src_image[..., 9:][scene_flow_mask]
     tgt_point = src_point + scene_flow_image[scene_flow_mask]
     src_point = src_point.reshape(-1, 3)
