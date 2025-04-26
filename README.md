@@ -65,5 +65,9 @@ sh main.sh
 ```
 You can refer to file `utils/visual_utils.py` for related view instructions.
 
+## Related File
+- [model checkpoint](https://drive.google.com/open?id=1TgIsS4jdYpxP_qDazbF6v42ySwSss5BA&usp=drive_fs)
+- [pcd result](https://drive.google.com/open?id=1sLQ_vsyQd9D7mJnw_8LOlcJ9u7EUsHg8&usp=drive_fs)
+
 # License
 TR4TR is released under the Apache 2.0 license. Please see the [LICENSE](LICENSE) file for more information.
