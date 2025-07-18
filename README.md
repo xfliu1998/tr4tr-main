@@ -1,6 +1,6 @@
 # TR4TR 
 
-This is an official pytorch implementation of our paper [Transformer for Non-rigid Tracking and Reconstruction].
+This is an official pytorch implementation of our paper [Spatial-Temporal Transformer for Single RGB-D Camera Synchronous Tracking and Reconstruction of Non-rigid Dynamic Objects](https://link.springer.com/article/10.1007/s11263-025-02469-5).
 In this repository, we provide PyTorch code for training and testing our proposed TR4TR model. 
 
 ## Setup
