@@ -71,3 +71,18 @@ You can refer to file `utils/visual_utils.py` for related view instructions.
 
 # License
 TR4TR is released under the Apache 2.0 license. Please see the [LICENSE](LICENSE) file for more information.
+
+# Citation
+If you find our work helpful for your research, please consider citing our work.
+```
+@article{liu2025spatial,
+  title={Spatial-Temporal Transformer for Single RGB-D Camera Synchronous Tracking and Reconstruction of Non-rigid Dynamic Objects},
+  author={Liu, Xiaofei and Yi, Zhengkun and Wu, Xinyu and Shang, Wanfeng},
+  journal={International Journal of Computer Vision},
+  pages={1--10},
+  year={2025},
+  publisher={Springer}
+}
+```
+
+
